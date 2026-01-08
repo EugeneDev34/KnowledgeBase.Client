@@ -490,7 +490,7 @@ namespace KnowledgeBase.Client.Forms
             MessageBox.Show("KnowledgeBase Client\nВерсия 1.1\n\n" +
                 "Система управления базой знаний\n" +
                 "Поддержка изображений в статьях\n" +
-                "© 2024",
+                "© 2026",
                 "О программе", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
