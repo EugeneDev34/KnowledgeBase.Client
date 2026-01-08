@@ -99,12 +99,22 @@ namespace KnowledgeBase.Client.Forms
             {
                 this.Cursor = Cursors.WaitCursor;
                 statusLabel.Text = "Загрузка данных...";
+
+                // Параллельная загрузка разделов и статей
                 await Task.WhenAll(LoadSectionsAsync(), LoadArticlesAsync());
-                statusLabel.Text = "Готово";
+
+                // Автоматически выбираем первый раздел, если ничего не выбрано
+                if (treeViewSections.Nodes.Count > 0 && treeViewSections.SelectedNode == null)
+                {
+                    treeViewSections.SelectedNode = treeViewSections.Nodes[0];
+                }
+
+                statusLabel.Text = $"Готово. Статей: {_articles.Count}";
                 lblArticleCount.Text = $"Статей: {_articles.Count}";
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"Ошибка загрузки данных: {ex.Message}");
                 ShowError($"Ошибка загрузки данных: {ex.Message}");
                 statusLabel.Text = "Ошибка загрузки";
             }
@@ -131,11 +141,25 @@ namespace KnowledgeBase.Client.Forms
         {
             try
             {
+                Console.WriteLine("Начало загрузки статей...");
+
                 _articles = await _apiClient.GetArticlesAsync();
+
+                // Логирование для отладки
+                Console.WriteLine($"Загружено статей: {_articles.Count}");
+                if (_articles.Count > 0)
+                {
+                    Console.WriteLine($"Первая статья: {_articles[0].Title}");
+                    Console.WriteLine($"Последняя статья: {_articles[_articles.Count - 1].Title}");
+                }
+
                 UpdateArticlesList();
+
+                Console.WriteLine("Список статей обновлен в UI");
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"Ошибка загрузки статей: {ex.Message}");
                 throw new Exception($"Ошибка загрузки статей: {ex.Message}", ex);
             }
         }
@@ -193,6 +217,11 @@ namespace KnowledgeBase.Client.Forms
 
             listViewArticles.EndUpdate();
             lblArticleCount.Text = $"Статей: {_articles.Count}";
+
+            // Сбрасываем текущую статью при обновлении списка
+            _currentArticle = null;
+            ClearArticleDisplay();
+            UpdateButtonStates();
         }
 
         private async void treeViewSections_AfterSelect(object sender, TreeViewEventArgs e)
@@ -380,13 +409,128 @@ namespace KnowledgeBase.Client.Forms
             // editArticleToolStripMenuItem.Enabled = hasSelection;
             // deleteArticleToolStripMenuItem.Enabled = hasSelection;
         }
+        private async Task RefreshArticlesWithNotification()
+        {
+            try
+            {
+                this.Cursor = Cursors.WaitCursor;
 
-        private void btnNewArticle_Click(object sender, EventArgs e)
+                // Сохраняем текущее состояние
+                int? selectedSectionId = null;
+                if (treeViewSections.SelectedNode?.Tag is Section section)
+                {
+                    selectedSectionId = section.SectionId;
+                    statusLabel.Text = $"Обновление раздела: {section.Name}";
+                }
+                else
+                {
+                    statusLabel.Text = "Обновление всех статей...";
+                }
+
+                // Загружаем разделы заново (на случай, если были изменения)
+                await LoadSectionsAsync();
+
+                // Восстанавливаем выбор раздела
+                if (selectedSectionId.HasValue)
+                {
+                    var nodeToSelect = FindTreeNodeBySectionId(treeViewSections.Nodes, selectedSectionId.Value);
+                    if (nodeToSelect != null)
+                    {
+                        treeViewSections.SelectedNode = nodeToSelect;
+                        await LoadArticlesBySectionAsync(selectedSectionId.Value);
+                    }
+                }
+                else
+                {
+                    await LoadArticlesAsync();
+                }
+
+                statusLabel.Text = $"Обновлено. Статей: {_articles.Count}";
+
+                // Показываем краткое уведомление (можно использовать StatusStrip или Label)
+                ShowTemporaryStatus("Список статей обновлен", 2000);
+            }
+            catch (Exception ex)
+            {
+                ShowError($"Ошибка обновления: {ex.Message}");
+            }
+            finally
+            {
+                this.Cursor = Cursors.Default;
+            }
+        }
+
+        // Вспомогательный метод для поиска узла TreeView по ID раздела
+        private TreeNode FindTreeNodeBySectionId(TreeNodeCollection nodes, int sectionId)
+        {
+            foreach (TreeNode node in nodes)
+            {
+                if (node.Tag is Section section && section.SectionId == sectionId)
+                    return node;
+
+                var foundInChildren = FindTreeNodeBySectionId(node.Nodes, sectionId);
+                if (foundInChildren != null)
+                    return foundInChildren;
+            }
+            return null;
+        }
+
+        // Метод для временного сообщения в статус-баре
+        private async void ShowTemporaryStatus(string message, int durationMs)
+        {
+            var originalText = statusLabel.Text;
+            statusLabel.Text = message;
+
+            await Task.Delay(durationMs);
+
+            if (statusLabel.Text == message) // Если текст не изменился другим процессом
+            {
+                statusLabel.Text = originalText;
+            }
+        }
+        private async void btnNewArticle_Click(object sender, EventArgs e)
         {
             var editorForm = new ArticleEditorForm(_apiClient);
             if (editorForm.ShowDialog() == DialogResult.OK)
             {
-                _ = LoadArticlesAsync();
+                try
+                {
+                    this.Cursor = Cursors.WaitCursor;
+                    statusLabel.Text = "Обновление списка статей...";
+
+                    // Полная перезагрузка всех данных
+                    await LoadDataAsync();
+
+                    // Если есть выбранный раздел, подсвечиваем его статьи
+                    if (treeViewSections.SelectedNode?.Tag is Section selectedSection)
+                    {
+                        await LoadArticlesBySectionAsync(selectedSection.SectionId);
+                    }
+                    else
+                    {
+                        // Если нет выбранного раздела, загружаем все статьи
+                        await LoadArticlesAsync();
+                    }
+
+                    // Показываем сообщение об успехе
+                    statusLabel.Text = "Статья успешно добавлена!";
+
+                    // Автоматически выделяем последнюю добавленную статью (если есть)
+                    if (listViewArticles.Items.Count > 0)
+                    {
+                        listViewArticles.Items[listViewArticles.Items.Count - 1].Selected = true;
+                        listViewArticles.EnsureVisible(listViewArticles.Items.Count - 1);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ShowError($"Ошибка при обновлении списка: {ex.Message}");
+                    statusLabel.Text = "Ошибка обновления";
+                }
+                finally
+                {
+                    this.Cursor = Cursors.Default;
+                }
             }
         }
 
@@ -462,9 +606,9 @@ namespace KnowledgeBase.Client.Forms
             searchForm.ShowDialog();
         }
 
-        private void btnRefresh_Click(object sender, EventArgs e)
+        private async void btnRefresh_Click(object sender, EventArgs e)
         {
-            _ = LoadDataAsync();
+            await RefreshArticlesWithNotification();
         }
 
         private void btnImages_Click(object sender, EventArgs e)
