@@ -13,6 +13,7 @@ namespace KnowledgeBase.Client.Forms
         private readonly ApiClient _apiClient;
         private readonly Article? _existingArticle;
         private List<Section> _sections = new List<Section>();
+        private Button? btnInsertImage; // Делаем nullable
 
         public ArticleEditorForm(ApiClient apiClient, Article? existingArticle = null)
         {
@@ -28,6 +29,21 @@ namespace KnowledgeBase.Client.Forms
             this.AcceptButton = btnSave;
             this.CancelButton = btnCancel;
 
+            // Создаем кнопку для вставки изображений
+            btnInsertImage = new Button
+            {
+                Text = "🖼️",
+                Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point),
+                Size = new Size(40, 24),
+                Location = new Point(340, 3)
+                // ToolTip удален, так как вызывает ошибку
+            };
+            btnInsertImage.Click += btnInsertImage_Click;
+            panelFormatting.Controls.Add(btnInsertImage);
+
+            // Перемещаем остальные кнопки
+            MoveFormattingButtons();
+
             if (_existingArticle != null)
             {
                 this.Text = "Редактирование статьи";
@@ -41,6 +57,18 @@ namespace KnowledgeBase.Client.Forms
             txtTitle.Select();
         }
 
+        private void MoveFormattingButtons()
+        {
+            btnFormatHeader1.Location = new Point(380, 3);
+            btnFormatHeader2.Location = new Point(420, 3);
+            btnFormatHeader3.Location = new Point(460, 3);
+            btnFormatList.Location = new Point(500, 3);
+            btnFormatOrderedList.Location = new Point(540, 3);
+            btnFormatLink.Location = new Point(580, 3);
+            btnFormatCode.Location = new Point(620, 3);
+            btnPreview.Location = new Point(710, 3);
+        }
+
         private async void ArticleEditorForm_Load(object sender, EventArgs e)
         {
             await LoadSectionsAsync();
@@ -50,12 +78,10 @@ namespace KnowledgeBase.Client.Forms
         {
             try
             {
-                Cursor = Cursors.WaitCursor;
+                this.Cursor = Cursors.WaitCursor;
                 lblStatus.Text = "Загрузка разделов...";
-
                 _sections = await _apiClient.GetSectionsAsync();
                 PopulateSectionsComboBox();
-
                 lblStatus.Text = "Готово";
             }
             catch (Exception ex)
@@ -66,7 +92,7 @@ namespace KnowledgeBase.Client.Forms
             }
             finally
             {
-                Cursor = Cursors.Default;
+                this.Cursor = Cursors.Default;
             }
         }
 
@@ -239,6 +265,61 @@ namespace KnowledgeBase.Client.Forms
                    GetSelectedSectionId() != _existingArticle.SectionId;
         }
 
+        // НОВЫЙ МЕТОД: Вставка изображения
+        private async void btnInsertImage_Click(object sender, EventArgs e)
+        {
+            using (OpenFileDialog openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.Filter = "Изображения (*.jpg;*.jpeg;*.png;*.gif;*.bmp)|*.jpg;*.jpeg;*.png;*.gif;*.bmp|Все файлы (*.*)|*.*";
+                openFileDialog.Title = "Выберите изображение для вставки";
+
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        this.Cursor = Cursors.WaitCursor;
+                        lblStatus.Text = "Загрузка изображения...";
+
+                        // Показываем диалог для ввода параметров изображения
+                        using (var imageDialog = new ImageInsertDialog())
+                        {
+                            if (imageDialog.ShowDialog() == DialogResult.OK)
+                            {
+                                // Загружаем изображение на сервер
+                                string imageUrl = await _apiClient.UploadImageAsync(openFileDialog.FileName);
+
+                                // Формируем HTML тег изображения
+                                string imgTag = $"<img src=\"{imageUrl}\" alt=\"{imageDialog.AltText}\"";
+
+                                if (!string.IsNullOrEmpty(imageDialog.ImageWidth))
+                                    imgTag += $" width=\"{imageDialog.ImageWidth}\"";
+
+                                if (!string.IsNullOrEmpty(imageDialog.ImageHeight))
+                                    imgTag += $" height=\"{imageDialog.ImageHeight}\"";
+
+                                imgTag += ">";
+
+                                // Вставляем тег в текст
+                                InsertFormatting(imgTag, "", "изображение");
+
+                                lblStatus.Text = "Изображение вставлено";
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Ошибка при вставке изображения: {ex.Message}", "Ошибка",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        lblStatus.Text = "Ошибка вставки";
+                    }
+                    finally
+                    {
+                        this.Cursor = Cursors.Default;
+                    }
+                }
+            }
+        }
+
         private void InsertFormatting(string openTag, string closeTag, string sampleText = "текст")
         {
             if (txtContent.SelectionLength > 0)
@@ -270,19 +351,19 @@ namespace KnowledgeBase.Client.Forms
             {
                 string selectedText = txtContent.SelectedText;
                 string[] lines = selectedText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-
                 string formattedList = "<ul>\r\n";
+
                 foreach (string line in lines)
                 {
-                    formattedList += $"    <li>{line.Trim()}</li>\r\n";
+                    formattedList += $"  <li>{line.Trim()}</li>\r\n";
                 }
-                formattedList += "</ul>";
 
+                formattedList += "</ul>";
                 txtContent.SelectedText = formattedList;
             }
             else
             {
-                InsertFormatting("<ul>\r\n    <li>", "</li>\r\n</ul>", "элемент списка");
+                InsertFormatting("<ul>\r\n  <li>", "</li>\r\n</ul>", "элемент списка");
             }
 
             txtContent.Focus();
@@ -294,19 +375,19 @@ namespace KnowledgeBase.Client.Forms
             {
                 string selectedText = txtContent.SelectedText;
                 string[] lines = selectedText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-
                 string formattedList = "<ol>\r\n";
+
                 foreach (string line in lines)
                 {
-                    formattedList += $"    <li>{line.Trim()}</li>\r\n";
+                    formattedList += $"  <li>{line.Trim()}</li>\r\n";
                 }
-                formattedList += "</ol>";
 
+                formattedList += "</ol>";
                 txtContent.SelectedText = formattedList;
             }
             else
             {
-                InsertFormatting("<ol>\r\n    <li>", "</li>\r\n</ol>", "элемент списка");
+                InsertFormatting("<ol>\r\n  <li>", "</li>\r\n</ol>", "элемент списка");
             }
 
             txtContent.Focus();
@@ -315,6 +396,7 @@ namespace KnowledgeBase.Client.Forms
         private void btnFormatLink_Click(object sender, EventArgs e)
         {
             string url = Microsoft.VisualBasic.Interaction.InputBox("Введите URL ссылки:", "Вставка ссылки", "https://");
+
             if (!string.IsNullOrWhiteSpace(url))
             {
                 InsertFormatting($"<a href=\"{url}\">", "</a>", "ссылка");
@@ -329,8 +411,8 @@ namespace KnowledgeBase.Client.Forms
         private void btnPreview_Click(object sender, EventArgs e)
         {
             string htmlContent = $"<!DOCTYPE html>\n<html>\n<head>\n<meta charset='utf-8'>\n" +
-                               $"<style>body {{ font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; }}</style>\n</head>\n<body>\n" +
-                               $"{txtContent.Text}\n</body>\n</html>";
+                $"<style>body {{ font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; }}</style>\n</head>\n<body>\n" +
+                $"{txtContent.Text}\n</body>\n</html>";
 
             using (var previewForm = new Form())
             {
@@ -352,6 +434,7 @@ namespace KnowledgeBase.Client.Forms
                     Dock = DockStyle.Bottom,
                     Height = 30
                 };
+
                 btnClose.Click += (s, ev) => previewForm.Close();
 
                 previewForm.Controls.Add(webBrowser);
@@ -374,6 +457,85 @@ namespace KnowledgeBase.Client.Forms
             {
                 return Section.Name;
             }
+        }
+    }
+
+    // Диалог для вставки изображения
+    public class ImageInsertDialog : Form
+    {
+        private TextBox? txtAltText;
+        private TextBox? txtWidth;
+        private TextBox? txtHeight;
+        private Button? btnOK;
+        private Button? btnCancel;
+
+        public string AltText => txtAltText?.Text ?? "";
+        public string ImageWidth => txtWidth?.Text ?? ""; // Изменено имя
+        public string ImageHeight => txtHeight?.Text ?? ""; // Изменено имя
+
+        public ImageInsertDialog()
+        {
+            InitializeComponent();
+        }
+
+        private void InitializeComponent()
+        {
+            this.Text = "Вставка изображения";
+            this.Size = new Size(400, 250);
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+
+            var lblAltText = new Label { Text = "Альтернативный текст:", Left = 20, Top = 20, Width = 150 };
+            txtAltText = new TextBox { Left = 180, Top = 20, Width = 180 };
+
+            var lblWidth = new Label { Text = "Ширина (px, необязательно):", Left = 20, Top = 60, Width = 150 };
+            txtWidth = new TextBox { Left = 180, Top = 60, Width = 80 };
+
+            var lblHeight = new Label { Text = "Высота (px, необязательно):", Left = 20, Top = 100, Width = 150 };
+            txtHeight = new TextBox { Left = 180, Top = 100, Width = 80 };
+
+            var lblNote = new Label
+            {
+                Text = "Примечание: оставьте поля ширины и высоты пустыми\nдля сохранения оригинального размера изображения",
+                Left = 20,
+                Top = 140,
+                Width = 340,
+                Height = 40,
+                Font = new Font("Segoe UI", 8F, FontStyle.Italic, GraphicsUnit.Point)
+            };
+
+            btnOK = new Button { Text = "OK", Left = 200, Top = 180, Width = 80 };
+            btnCancel = new Button { Text = "Отмена", Left = 290, Top = 180, Width = 80 };
+
+            btnOK.Click += (s, e) => { if (ValidateInput()) DialogResult = DialogResult.OK; };
+            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
+
+            this.Controls.AddRange(new Control[] {
+                lblAltText, txtAltText,
+                lblWidth, txtWidth,
+                lblHeight, txtHeight,
+                lblNote,
+                btnOK, btnCancel
+            });
+
+            this.AcceptButton = btnOK;
+            this.CancelButton = btnCancel;
+        }
+
+        private bool ValidateInput()
+        {
+            if (string.IsNullOrWhiteSpace(txtAltText?.Text))
+            {
+                MessageBox.Show("Введите альтернативный текст для изображения", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtAltText?.Focus();
+                return false;
+            }
+
+            return true;
         }
     }
 }

@@ -38,18 +38,24 @@ namespace KnowledgeBase.Client.Forms
             listViewArticles.View = View.Details;
             listViewArticles.MultiSelect = false;
 
+            // Добавляем колонки в ListView
+            listViewArticles.Columns.Add("Заголовок", 300);
+            listViewArticles.Columns.Add("Автор", 150);
+            listViewArticles.Columns.Add("Дата", 150);
+            listViewArticles.Columns.Add("Раздел", 200);
+
             // Настройка WebBrowser
             webBrowser.AllowNavigation = false;
             webBrowser.AllowWebBrowserDrop = false;
             webBrowser.IsWebBrowserContextMenuEnabled = false;
             webBrowser.WebBrowserShortcutsEnabled = false;
+            // Включаем отображение изображений
+            webBrowser.AllowWebBrowserDrop = true;
+            webBrowser.IsWebBrowserContextMenuEnabled = true;
 
             // Настройка статус бара
             statusLabel.Text = "Готово";
             lblArticleCount.Text = "Статей: 0";
-
-            // Установка обработчиков
-            SetupEventHandlers();
         }
 
         private Image CreateFolderIcon(Color color)
@@ -82,30 +88,6 @@ namespace KnowledgeBase.Client.Forms
             return bmp;
         }
 
-        private void SetupEventHandlers()
-        {
-            treeViewSections.AfterSelect += TreeViewSections_AfterSelect;
-            listViewArticles.SelectedIndexChanged += ListViewArticles_SelectedIndexChanged;
-            listViewArticles.DoubleClick += ListViewArticles_DoubleClick;
-
-            btnNewArticle.Click += BtnNewArticle_Click;
-            btnEditArticle.Click += BtnEditArticle_Click;
-            btnDeleteArticle.Click += BtnDeleteArticle_Click;
-            btnManageSections.Click += BtnManageSections_Click;
-            btnSearch.Click += BtnSearch_Click;
-            btnRefresh.Click += BtnRefresh_Click;
-            btnImages.Click += BtnImages_Click;
-
-            newArticleToolStripMenuItem.Click += BtnNewArticle_Click;
-            editArticleToolStripMenuItem.Click += BtnEditArticle_Click;
-            deleteArticleToolStripMenuItem.Click += BtnDeleteArticle_Click;
-            manageSectionsToolStripMenuItem.Click += BtnManageSections_Click;
-            searchToolStripMenuItem.Click += BtnSearch_Click;
-            refreshToolStripMenuItem.Click += BtnRefresh_Click;
-            exitToolStripMenuItem.Click += ExitToolStripMenuItem_Click;
-            aboutToolStripMenuItem.Click += AboutToolStripMenuItem_Click;
-        }
-
         private async void MainForm_Load(object sender, EventArgs e)
         {
             await LoadDataAsync();
@@ -115,11 +97,9 @@ namespace KnowledgeBase.Client.Forms
         {
             try
             {
-                Cursor = Cursors.WaitCursor;
+                this.Cursor = Cursors.WaitCursor;
                 statusLabel.Text = "Загрузка данных...";
-
                 await Task.WhenAll(LoadSectionsAsync(), LoadArticlesAsync());
-
                 statusLabel.Text = "Готово";
                 lblArticleCount.Text = $"Статей: {_articles.Count}";
             }
@@ -130,7 +110,7 @@ namespace KnowledgeBase.Client.Forms
             }
             finally
             {
-                Cursor = Cursors.Default;
+                this.Cursor = Cursors.Default;
             }
         }
 
@@ -168,7 +148,6 @@ namespace KnowledgeBase.Client.Forms
             void BuildTreeNodes(int? parentId, TreeNodeCollection nodes)
             {
                 var childSections = _sections.FindAll(s => s.ParentSectionId == parentId);
-
                 foreach (var section in childSections)
                 {
                     var node = new TreeNode(section.Name)
@@ -177,7 +156,6 @@ namespace KnowledgeBase.Client.Forms
                         ImageKey = "folder",
                         SelectedImageKey = "folder_open"
                     };
-
                     nodes.Add(node);
                     BuildTreeNodes(section.SectionId, node.Nodes);
                 }
@@ -206,7 +184,6 @@ namespace KnowledgeBase.Client.Forms
                     Tag = article,
                     ImageKey = "document"
                 };
-
                 item.SubItems.Add(article.AuthorName);
                 item.SubItems.Add(article.CreatedDate.ToString("dd.MM.yyyy HH:mm"));
                 item.SubItems.Add(article.SectionName);
@@ -218,7 +195,7 @@ namespace KnowledgeBase.Client.Forms
             lblArticleCount.Text = $"Статей: {_articles.Count}";
         }
 
-        private async void TreeViewSections_AfterSelect(object sender, TreeViewEventArgs e)
+        private async void treeViewSections_AfterSelect(object sender, TreeViewEventArgs e)
         {
             if (e.Node?.Tag is Section section)
             {
@@ -230,12 +207,10 @@ namespace KnowledgeBase.Client.Forms
         {
             try
             {
-                Cursor = Cursors.WaitCursor;
+                this.Cursor = Cursors.WaitCursor;
                 statusLabel.Text = "Загрузка статей раздела...";
-
                 _articles = await _apiClient.GetArticlesBySectionAsync(sectionId);
                 UpdateArticlesList();
-
                 statusLabel.Text = $"Загружено статей: {_articles.Count}";
             }
             catch (Exception ex)
@@ -244,11 +219,11 @@ namespace KnowledgeBase.Client.Forms
             }
             finally
             {
-                Cursor = Cursors.Default;
+                this.Cursor = Cursors.Default;
             }
         }
 
-        private void ListViewArticles_SelectedIndexChanged(object sender, EventArgs e)
+        private void listViewArticles_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (listViewArticles.SelectedItems.Count > 0 &&
                 listViewArticles.SelectedItems[0].Tag is Article article)
@@ -261,11 +236,10 @@ namespace KnowledgeBase.Client.Forms
                 _currentArticle = null;
                 ClearArticleDisplay();
             }
-
             UpdateButtonStates();
         }
 
-        private void ListViewArticles_DoubleClick(object sender, EventArgs e)
+        private void listViewArticles_DoubleClick(object sender, EventArgs e)
         {
             if (_currentArticle != null)
             {
@@ -276,105 +250,138 @@ namespace KnowledgeBase.Client.Forms
         private void DisplayArticle(Article article)
         {
             txtTitle.Text = article.Title;
-
-            string htmlContent = $@"
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset='utf-8'>
-                    <style>
-                        body {{ 
-                            font-family: 'Segoe UI', Arial, sans-serif; 
-                            padding: 20px;
-                            line-height: 1.6;
-                            color: #333;
-                        }}
-                        h1 {{ 
-                            color: #2c3e50; 
-                            border-bottom: 2px solid #eee;
-                            padding-bottom: 10px;
-                        }}
-                        h2 {{ color: #34495e; }}
-                        h3 {{ color: #7f8c8d; }}
-                        p {{ margin: 10px 0; }}
-                        ul, ol {{ margin: 10px 0 10px 20px; }}
-                        li {{ margin: 5px 0; }}
-                        img {{ 
-                            max-width: 100%; 
-                            height: auto;
-                            border: 1px solid #ddd;
-                            border-radius: 4px;
-                            padding: 5px;
-                        }}
-                        pre {{ 
-                            background: #f8f9fa; 
-                            padding: 15px;
-                            border-radius: 5px;
-                            border-left: 4px solid #007bff;
-                            overflow-x: auto;
-                        }}
-                        code {{ 
-                            background: #f8f9fa; 
-                            padding: 2px 6px;
-                            border-radius: 3px;
-                            font-family: 'Consolas', monospace;
-                        }}
-                        blockquote {{
-                            border-left: 4px solid #ddd;
-                            margin: 10px 0;
-                            padding-left: 15px;
-                            color: #666;
-                        }}
-                        table {{
-                            border-collapse: collapse;
-                            width: 100%;
-                            margin: 15px 0;
-                        }}
-                        th, td {{
-                            border: 1px solid #ddd;
-                            padding: 8px;
-                            text-align: left;
-                        }}
-                        th {{
-                            background-color: #f2f2f2;
-                        }}
-                    </style>
-                </head>
-                <body>
-                    {article.Content}
-                </body>
-                </html>";
-
+            // Генерируем полный HTML контент с поддержкой изображений
+            string htmlContent = GenerateHtmlContent(article);
             webBrowser.DocumentText = htmlContent;
-
             lblArticleInfo.Text = $"Автор: {article.AuthorName} | " +
-                                $"Раздел: {article.SectionName} | " +
-                                $"Создана: {article.CreatedDate:dd.MM.yyyy HH:mm} | " +
-                                $"Обновлена: {article.UpdatedDate:dd.MM.yyyy HH:mm}";
+                                 $"Раздел: {article.SectionName} | " +
+                                 $"Создана: {article.CreatedDate:dd.MM.yyyy HH:mm} | " +
+                                 $"Обновлена: {article.UpdatedDate:dd.MM.yyyy HH:mm}";
+        }
+
+        // Генерация HTML контента с поддержкой изображений
+        private string GenerateHtmlContent(Article article)
+        {
+            // Обрабатываем изображения в контенте
+            string processedContent = ProcessImageTags(article.Content);
+
+            // Используем упрощенный HTML чтобы избежать ошибок парсинга
+            string htmlTemplate = "<!DOCTYPE html>" +
+                "<html>" +
+                "<head>" +
+                "<meta charset='utf-8'>" +
+                "<style>" +
+                "body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; line-height: 1.6; color: #333; max-width: 1200px; margin: 0 auto; }" +
+                "h1 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 25px; }" +
+                "h2 { color: #34495e; margin-top: 30px; margin-bottom: 15px; }" +
+                "h3 { color: #7f8c8d; margin-top: 25px; margin-bottom: 10px; }" +
+                "p { margin: 15px 0; text-align: justify; }" +
+                "ul, ol { margin: 15px 0 15px 25px; }" +
+                "li { margin: 8px 0; }" +
+                "img { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 8px; padding: 8px; margin: 20px auto; display: block; box-shadow: 0 4px 8px rgba(0,0,0,0.1); background-color: #f8f9fa; transition: transform 0.3s ease; }" +
+                "img:hover { transform: scale(1.02); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }" +
+                "pre { background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 5px solid #007bff; overflow-x: auto; margin: 20px 0; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; line-height: 1.5; }" +
+                "code { background: #f8f9fa; padding: 3px 8px; border-radius: 4px; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; color: #e83e8c; }" +
+                "blockquote { border-left: 4px solid #ddd; margin: 20px 0; padding-left: 20px; color: #666; font-style: italic; background-color: #f9f9f9; padding: 15px 20px; border-radius: 0 8px 8px 0; }" +
+                "table { border-collapse: collapse; width: 100%; margin: 25px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }" +
+                "th, td { border: 1px solid #dee2e6; padding: 12px 15px; text-align: left; }" +
+                "th { background-color: #f2f2f2; font-weight: 600; }" +
+                "tr:nth-child(even) { background-color: #f8f9fa; }" +
+                ".image-caption { text-align: center; font-style: italic; color: #666; margin-top: -15px; margin-bottom: 25px; font-size: 14px; }" +
+                ".article-header { background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); color: white; padding: 30px; border-radius: 10px; margin-bottom: 30px; }" +
+                ".article-title { font-size: 2.5em; margin-bottom: 10px; font-weight: 700; }" +
+                ".article-meta { font-size: 0.9em; opacity: 0.9; margin-top: 10px; }" +
+                ".content-wrapper { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }" +
+                "@media (max-width: 768px) { body { padding: 15px; } .content-wrapper { padding: 20px; } .article-title { font-size: 1.8em; } }" +
+                "</style>" +
+                "</head>" +
+                "<body>" +
+                "<div class='article-header'>" +
+                $"<h1 class='article-title'>{article.Title}</h1>" +
+                "<div class='article-meta'>" +
+                $"Автор: {article.AuthorName} | " +
+                $"Раздел: {article.SectionName} | " +
+                $"Создана: {article.CreatedDate:dd.MM.yyyy HH:mm} | " +
+                $"Обновлена: {article.UpdatedDate:dd.MM.yyyy HH:mm}" +
+                "</div>" +
+                "</div>" +
+                "<div class='content-wrapper'>" +
+                $"{processedContent}" +
+                "</div>" +
+                "<script>" +
+                "document.addEventListener('DOMContentLoaded', function() {" +
+                "var images = document.querySelectorAll('img');" +
+                "images.forEach(function(img) {" +
+                "img.addEventListener('click', function() {" +
+                "this.classList.toggle('zoomed');" +
+                "});" +
+                "img.addEventListener('error', function() {" +
+                "this.src = 'data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"400\" height=\"300\" viewBox=\"0 0 400 300\"><rect width=\"400\" height=\"300\" fill=\"#f8f9fa\"/><text x=\"200\" y=\"150\" font-family=\"Arial\" font-size=\"16\" text-anchor=\"middle\" fill=\"#666\">Изображение не загружено</text></svg>';" +
+                "this.alt = 'Изображение не загружено';" +
+                "});" +
+                "});" +
+                "});" +
+                "</script>" +
+                "</body>" +
+                "</html>";
+
+            return htmlTemplate;
+        }
+
+        // Обработка тегов изображений в контенте
+        private string ProcessImageTags(string content)
+        {
+            if (string.IsNullOrEmpty(content))
+                return content;
+
+            // Простая обработка - можно добавить более сложную логику при необходимости
+            // Например, добавление подписей к изображениям, ленивую загрузку и т.д.
+            return content;
         }
 
         private void ClearArticleDisplay()
         {
             txtTitle.Text = "Выберите статью для просмотра";
-            webBrowser.DocumentText = "<html><body style='font-family: Segoe UI; color: #666; text-align: center; padding: 50px;'>" +
-                                    "<h3>Выберите статью из списка</h3>" +
-                                    "<p>Для просмотра содержимого выберите статью в списке выше</p></body></html>";
+            string noSelectionHtml = "<!DOCTYPE html>" +
+                "<html>" +
+                "<head>" +
+                "<meta charset='utf-8'>" +
+                "<style>" +
+                "body { font-family: 'Segoe UI', Arial, sans-serif; color: #666; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }" +
+                ".container { text-align: center; background: white; padding: 50px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); max-width: 600px; }" +
+                "h3 { color: #333; margin-bottom: 20px; font-size: 24px; }" +
+                "p { color: #666; line-height: 1.6; margin-bottom: 30px; }" +
+                ".icon { font-size: 48px; margin-bottom: 20px; color: #764ba2; }" +
+                "</style>" +
+                "</head>" +
+                "<body>" +
+                "<div class='container'>" +
+                "<div class='icon'>📚</div>" +
+                "<h3>Выберите статью из списка</h3>" +
+                "<p>Для просмотра содержимого выберите статью в списке выше.<br>" +
+                "Вы можете создавать новые статьи, редактировать существующие<br>" +
+                "и вставлять изображения в содержимое статей.</p>" +
+                "</div>" +
+                "</body>" +
+                "</html>";
+
+            webBrowser.DocumentText = noSelectionHtml;
             lblArticleInfo.Text = string.Empty;
         }
 
         private void UpdateButtonStates()
         {
             bool hasSelection = _currentArticle != null;
-
             btnEditArticle.Enabled = hasSelection;
             btnDeleteArticle.Enabled = hasSelection;
             btnImages.Enabled = hasSelection;
 
-            editArticleToolStripMenuItem.Enabled = hasSelection;
-            deleteArticleToolStripMenuItem.Enabled = hasSelection;
+            // Удалите эти строки, если у вас нет таких элементов меню:
+            // editArticleToolStripMenuItem.Enabled = hasSelection;
+            // deleteArticleToolStripMenuItem.Enabled = hasSelection;
         }
 
-        private void BtnNewArticle_Click(object sender, EventArgs e)
+        private void btnNewArticle_Click(object sender, EventArgs e)
         {
             var editorForm = new ArticleEditorForm(_apiClient);
             if (editorForm.ShowDialog() == DialogResult.OK)
@@ -383,7 +390,7 @@ namespace KnowledgeBase.Client.Forms
             }
         }
 
-        private void BtnEditArticle_Click(object sender, EventArgs e)
+        private void btnEditArticle_Click(object sender, EventArgs e)
         {
             if (_currentArticle != null)
             {
@@ -400,12 +407,12 @@ namespace KnowledgeBase.Client.Forms
             }
         }
 
-        private async void BtnDeleteArticle_Click(object sender, EventArgs e)
+        private async void btnDeleteArticle_Click(object sender, EventArgs e)
         {
             if (_currentArticle != null)
             {
                 var result = MessageBox.Show($"Удалить статью \"{_currentArticle.Title}\"?\n\n" +
-                                           "Это действие нельзя отменить.",
+                    "Это действие нельзя отменить.",
                     "Подтверждение удаления",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question,
@@ -415,11 +422,9 @@ namespace KnowledgeBase.Client.Forms
                 {
                     try
                     {
-                        Cursor = Cursors.WaitCursor;
+                        this.Cursor = Cursors.WaitCursor;
                         statusLabel.Text = "Удаление статьи...";
-
                         var success = await _apiClient.DeleteArticleAsync(_currentArticle.ArticleId);
-
                         if (success)
                         {
                             statusLabel.Text = "Статья удалена";
@@ -436,13 +441,13 @@ namespace KnowledgeBase.Client.Forms
                     }
                     finally
                     {
-                        Cursor = Cursors.Default;
+                        this.Cursor = Cursors.Default;
                     }
                 }
             }
         }
 
-        private void BtnManageSections_Click(object sender, EventArgs e)
+        private void btnManageSections_Click(object sender, EventArgs e)
         {
             var sectionsForm = new SectionManagerForm(_apiClient);
             if (sectionsForm.ShowDialog() == DialogResult.OK)
@@ -451,18 +456,18 @@ namespace KnowledgeBase.Client.Forms
             }
         }
 
-        private void BtnSearch_Click(object sender, EventArgs e)
+        private void btnSearch_Click(object sender, EventArgs e)
         {
             var searchForm = new SearchForm(_apiClient);
             searchForm.ShowDialog();
         }
 
-        private void BtnRefresh_Click(object sender, EventArgs e)
+        private void btnRefresh_Click(object sender, EventArgs e)
         {
             _ = LoadDataAsync();
         }
 
-        private void BtnImages_Click(object sender, EventArgs e)
+        private void btnImages_Click(object sender, EventArgs e)
         {
             if (_currentArticle != null)
             {
@@ -471,7 +476,7 @@ namespace KnowledgeBase.Client.Forms
             }
         }
 
-        private void ExitToolStripMenuItem_Click(object sender, EventArgs e)
+        private void exitToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (MessageBox.Show("Закрыть приложение?", "Подтверждение",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
@@ -480,11 +485,12 @@ namespace KnowledgeBase.Client.Forms
             }
         }
 
-        private void AboutToolStripMenuItem_Click(object sender, EventArgs e)
+        private void aboutToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("KnowledgeBase Client\nВерсия 1.0\n\n" +
-                          "Система управления базой знаний\n" +
-                          "© 2024",
+            MessageBox.Show("KnowledgeBase Client\nВерсия 1.1\n\n" +
+                "Система управления базой знаний\n" +
+                "Поддержка изображений в статьях\n" +
+                "© 2024",
                 "О программе", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 

@@ -71,7 +71,6 @@ namespace KnowledgeBase.Client.Services
                     var error = await response.Content.ReadAsStringAsync();
                     throw new ApiException($"Ошибка авторизации: {response.StatusCode} - {error}");
                 }
-
                 return null;
             }
             catch (HttpRequestException ex)
@@ -188,6 +187,7 @@ namespace KnowledgeBase.Client.Services
 
                 var fileContent = new ByteArrayContent(fileBytes);
                 fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("application/octet-stream");
+
                 content.Add(fileContent, "file", fileName);
 
                 var response = await _httpClient.PostAsync("/api/Images/upload", content);
@@ -201,6 +201,49 @@ namespace KnowledgeBase.Client.Services
                     var error = await response.Content.ReadAsStringAsync();
                     throw new ApiException($"Ошибка загрузки: {response.StatusCode} - {error}");
                 }
+            }
+            catch (Exception ex) when (ex is not ApiException)
+            {
+                throw new ApiException($"Ошибка при загрузке изображения: {ex.Message}", ex);
+            }
+        }
+
+        // НОВЫЙ МЕТОД: Загрузка изображения без привязки к статье (для вставки в контент)
+        public async Task<string> UploadImageAsync(string filePath)
+        {
+            try
+            {
+                if (!File.Exists(filePath))
+                    throw new FileNotFoundException($"Файл не найден: {filePath}");
+
+                var fileName = Path.GetFileName(filePath);
+                var fileBytes = await File.ReadAllBytesAsync(filePath);
+
+                using var content = new MultipartFormDataContent();
+                var fileContent = new ByteArrayContent(fileBytes);
+                fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("application/octet-stream");
+
+                content.Add(fileContent, "file", fileName);
+
+                var response = await _httpClient.PostAsync("/api/Images/upload-content", content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+                    if (result.TryGetProperty("fullUrl", out var urlProperty))
+                    {
+                        return urlProperty.GetString() ?? "";
+                    }
+                    else if (result.TryGetProperty("filePath", out var filePathProperty))
+                    {
+                        // Возвращаем полный URL для вставки в контент
+                        var relativePath = filePathProperty.GetString();
+                        return $"{_baseUrl}{relativePath}";
+                    }
+                }
+
+                var error = await response.Content.ReadAsStringAsync();
+                throw new ApiException($"Ошибка загрузки: {response.StatusCode} - {error}");
             }
             catch (Exception ex) when (ex is not ApiException)
             {

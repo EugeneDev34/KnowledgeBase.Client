@@ -8,6 +8,7 @@ namespace KnowledgeBase.Client.Services.Models
         public int ArticleId { get; set; }
         public string Title { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
+        public string HtmlContentWithImages { get; set; } = string.Empty; // Новое поле
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
         public string AuthorName { get; set; } = string.Empty;
@@ -20,6 +21,7 @@ namespace KnowledgeBase.Client.Services.Models
     {
         public string Title { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
+        public string HtmlContentWithImages { get; set; } = string.Empty; // Новое поле
         public int SectionId { get; set; }
     }
 
@@ -27,6 +29,7 @@ namespace KnowledgeBase.Client.Services.Models
     {
         public string Title { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
+        public string HtmlContentWithImages { get; set; } = string.Empty; // Новое поле
         public int SectionId { get; set; }
     }
 }
