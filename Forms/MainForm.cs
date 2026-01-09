@@ -20,42 +20,73 @@ namespace KnowledgeBase.Client.Forms
             _apiClient = apiClient;
             InitializeComponent();
             SetupForm();
+            AttachEventHandlers();
         }
 
         private void SetupForm()
         {
-            // Настройка иконок для TreeView
-            ImageList imageList = new ImageList();
-            imageList.Images.Add("folder", CreateFolderIcon(Color.SteelBlue));
-            imageList.Images.Add("folder_open", CreateFolderIcon(Color.DodgerBlue));
-            imageList.Images.Add("document", CreateDocumentIcon(Color.Gray));
+            try
+            {
+                // Настройка иконок для TreeView
+                ImageList imageList = new ImageList();
+                imageList.Images.Add("folder", CreateFolderIcon(Color.SteelBlue));
+                imageList.Images.Add("folder_open", CreateFolderIcon(Color.DodgerBlue));
+                imageList.Images.Add("document", CreateDocumentIcon(Color.Gray));
 
-            treeViewSections.ImageList = imageList;
-            listViewArticles.SmallImageList = imageList;
+                treeViewSections.ImageList = imageList;
+                listViewArticles.SmallImageList = imageList;
 
-            // Настройка ListView
-            listViewArticles.FullRowSelect = true;
-            listViewArticles.View = View.Details;
-            listViewArticles.MultiSelect = false;
+                // Настройка ListView
+                listViewArticles.FullRowSelect = true;
+                listViewArticles.View = View.Details;
+                listViewArticles.MultiSelect = false;
 
-            // Добавляем колонки в ListView
-            listViewArticles.Columns.Add("Заголовок", 300);
-            listViewArticles.Columns.Add("Автор", 150);
-            listViewArticles.Columns.Add("Дата", 150);
-            listViewArticles.Columns.Add("Раздел", 200);
+                // Добавляем колонки в ListView
+                listViewArticles.Columns.Add("Заголовок", 300);
+                listViewArticles.Columns.Add("Автор", 150);
+                listViewArticles.Columns.Add("Дата", 150);
+                listViewArticles.Columns.Add("Раздел", 200);
 
-            // Настройка WebBrowser
-            webBrowser.AllowNavigation = false;
-            webBrowser.AllowWebBrowserDrop = false;
-            webBrowser.IsWebBrowserContextMenuEnabled = false;
-            webBrowser.WebBrowserShortcutsEnabled = false;
-            // Включаем отображение изображений
-            webBrowser.AllowWebBrowserDrop = true;
-            webBrowser.IsWebBrowserContextMenuEnabled = true;
+                // Настройка WebBrowser
+                webBrowser.AllowNavigation = false;
+                webBrowser.AllowWebBrowserDrop = false;
+                webBrowser.IsWebBrowserContextMenuEnabled = false;
+                webBrowser.WebBrowserShortcutsEnabled = false;
 
-            // Настройка статус бара
-            statusLabel.Text = "Готово";
-            lblArticleCount.Text = "Статей: 0";
+                // Настройка статус бара
+                statusLabel.Text = "Готово";
+                lblArticleCount.Text = "Статей: 0";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка настройки формы: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void AttachEventHandlers()
+        {
+            // Привязка обработчиков событий
+            treeViewSections.AfterSelect += treeViewSections_AfterSelect;
+            listViewArticles.SelectedIndexChanged += listViewArticles_SelectedIndexChanged;
+            listViewArticles.DoubleClick += listViewArticles_DoubleClick;
+
+            // Кнопки
+            btnNewArticle.Click += btnNewArticle_Click;
+            btnEditArticle.Click += btnEditArticle_Click;
+            btnDeleteArticle.Click += btnDeleteArticle_Click;
+            btnImages.Click += btnImages_Click;
+            btnManageSections.Click += btnManageSections_Click;
+            btnSearch.Click += btnSearch_Click;
+            btnRefresh.Click += btnRefresh_Click;
+
+            // Меню
+            exitToolStripMenuItem.Click += exitToolStripMenuItem_Click;
+            aboutToolStripMenuItem.Click += aboutToolStripMenuItem_Click;
+
+            // Форма
+            this.Load += MainForm_Load;
+            this.FormClosing += MainForm_FormClosing;
         }
 
         private Image CreateFolderIcon(Color color)
@@ -142,7 +173,6 @@ namespace KnowledgeBase.Client.Forms
             try
             {
                 Console.WriteLine("Начало загрузки статей...");
-
                 _articles = await _apiClient.GetArticlesAsync();
 
                 // Логирование для отладки
@@ -154,7 +184,6 @@ namespace KnowledgeBase.Client.Forms
                 }
 
                 UpdateArticlesList();
-
                 Console.WriteLine("Список статей обновлен в UI");
             }
             catch (Exception ex)
@@ -238,8 +267,10 @@ namespace KnowledgeBase.Client.Forms
             {
                 this.Cursor = Cursors.WaitCursor;
                 statusLabel.Text = "Загрузка статей раздела...";
+
                 _articles = await _apiClient.GetArticlesBySectionAsync(sectionId);
                 UpdateArticlesList();
+
                 statusLabel.Text = $"Загружено статей: {_articles.Count}";
             }
             catch (Exception ex)
@@ -279,16 +310,17 @@ namespace KnowledgeBase.Client.Forms
         private void DisplayArticle(Article article)
         {
             txtTitle.Text = article.Title;
+
             // Генерируем полный HTML контент с поддержкой изображений
             string htmlContent = GenerateHtmlContent(article);
             webBrowser.DocumentText = htmlContent;
+
             lblArticleInfo.Text = $"Автор: {article.AuthorName} | " +
                                  $"Раздел: {article.SectionName} | " +
                                  $"Создана: {article.CreatedDate:dd.MM.yyyy HH:mm} | " +
                                  $"Обновлена: {article.UpdatedDate:dd.MM.yyyy HH:mm}";
         }
 
-        // Генерация HTML контента с поддержкой изображений
         private string GenerateHtmlContent(Article article)
         {
             // Обрабатываем изображения в контенте
@@ -357,14 +389,11 @@ namespace KnowledgeBase.Client.Forms
             return htmlTemplate;
         }
 
-        // Обработка тегов изображений в контенте
         private string ProcessImageTags(string content)
         {
             if (string.IsNullOrEmpty(content))
                 return content;
 
-            // Простая обработка - можно добавить более сложную логику при необходимости
-            // Например, добавление подписей к изображениям, ленивую загрузку и т.д.
             return content;
         }
 
@@ -404,90 +433,8 @@ namespace KnowledgeBase.Client.Forms
             btnEditArticle.Enabled = hasSelection;
             btnDeleteArticle.Enabled = hasSelection;
             btnImages.Enabled = hasSelection;
-
-            // Удалите эти строки, если у вас нет таких элементов меню:
-            // editArticleToolStripMenuItem.Enabled = hasSelection;
-            // deleteArticleToolStripMenuItem.Enabled = hasSelection;
-        }
-        private async Task RefreshArticlesWithNotification()
-        {
-            try
-            {
-                this.Cursor = Cursors.WaitCursor;
-
-                // Сохраняем текущее состояние
-                int? selectedSectionId = null;
-                if (treeViewSections.SelectedNode?.Tag is Section section)
-                {
-                    selectedSectionId = section.SectionId;
-                    statusLabel.Text = $"Обновление раздела: {section.Name}";
-                }
-                else
-                {
-                    statusLabel.Text = "Обновление всех статей...";
-                }
-
-                // Загружаем разделы заново (на случай, если были изменения)
-                await LoadSectionsAsync();
-
-                // Восстанавливаем выбор раздела
-                if (selectedSectionId.HasValue)
-                {
-                    var nodeToSelect = FindTreeNodeBySectionId(treeViewSections.Nodes, selectedSectionId.Value);
-                    if (nodeToSelect != null)
-                    {
-                        treeViewSections.SelectedNode = nodeToSelect;
-                        await LoadArticlesBySectionAsync(selectedSectionId.Value);
-                    }
-                }
-                else
-                {
-                    await LoadArticlesAsync();
-                }
-
-                statusLabel.Text = $"Обновлено. Статей: {_articles.Count}";
-
-                // Показываем краткое уведомление (можно использовать StatusStrip или Label)
-                ShowTemporaryStatus("Список статей обновлен", 2000);
-            }
-            catch (Exception ex)
-            {
-                ShowError($"Ошибка обновления: {ex.Message}");
-            }
-            finally
-            {
-                this.Cursor = Cursors.Default;
-            }
         }
 
-        // Вспомогательный метод для поиска узла TreeView по ID раздела
-        private TreeNode FindTreeNodeBySectionId(TreeNodeCollection nodes, int sectionId)
-        {
-            foreach (TreeNode node in nodes)
-            {
-                if (node.Tag is Section section && section.SectionId == sectionId)
-                    return node;
-
-                var foundInChildren = FindTreeNodeBySectionId(node.Nodes, sectionId);
-                if (foundInChildren != null)
-                    return foundInChildren;
-            }
-            return null;
-        }
-
-        // Метод для временного сообщения в статус-баре
-        private async void ShowTemporaryStatus(string message, int durationMs)
-        {
-            var originalText = statusLabel.Text;
-            statusLabel.Text = message;
-
-            await Task.Delay(durationMs);
-
-            if (statusLabel.Text == message) // Если текст не изменился другим процессом
-            {
-                statusLabel.Text = originalText;
-            }
-        }
         private async void btnNewArticle_Click(object sender, EventArgs e)
         {
             var editorForm = new ArticleEditorForm(_apiClient);
@@ -568,6 +515,7 @@ namespace KnowledgeBase.Client.Forms
                     {
                         this.Cursor = Cursors.WaitCursor;
                         statusLabel.Text = "Удаление статьи...";
+
                         var success = await _apiClient.DeleteArticleAsync(_currentArticle.ArticleId);
                         if (success)
                         {
@@ -608,7 +556,20 @@ namespace KnowledgeBase.Client.Forms
 
         private async void btnRefresh_Click(object sender, EventArgs e)
         {
-            await RefreshArticlesWithNotification();
+            try
+            {
+                this.Cursor = Cursors.WaitCursor;
+                statusLabel.Text = "Обновление данных...";
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                ShowError($"Ошибка обновления: {ex.Message}");
+            }
+            finally
+            {
+                this.Cursor = Cursors.Default;
+            }
         }
 
         private void btnImages_Click(object sender, EventArgs e)
